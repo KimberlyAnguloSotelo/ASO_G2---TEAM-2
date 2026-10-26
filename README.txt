@@ -20,15 +20,18 @@ REQUISITOS
 PASO 1. Preparar el destino (en la maquina destino, como root)
    El destino debe poder resolver su propio nombre; si no, Samba
    tarda en responder.
-     hostnamectl set-hostname destino
-     echo "IP_DEL_DESTINO destino" >> /etc/hosts
-
-PASO 2. Acceso por clave SSH (en la master)
+   hostnamectl set-hostname destino
+     
+PASO 2. Acceso por clave SSH
    Asi el inventario no necesita usuario ni contrasena.
-     En openSUSE 16 el login de root por contrasena viene desactivado.
-     Antes de ssh-copy-id, en el destino como root:
+   En openSUSE 16 el login de root por contrasena viene desactivado,
+   y ssh-copy-id lo necesita una vez para copiar la clave.
+
+   2.1 En el destino, como root:
      zypper install -y openssh-server-config-rootlogin
      systemctl restart sshd
+
+   2.2 En la master:
      ssh-keygen -t ed25519
      ssh-copy-id root@IP_DEL_DESTINO
      ssh root@IP_DEL_DESTINO hostname

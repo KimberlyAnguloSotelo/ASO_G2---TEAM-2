@@ -2,6 +2,7 @@
 samba_packages:
   - samba
   - samba-client
+  - policycoreutils-python-utils
 
 samba_group: smbgrupo
 samba_share_name: compartido
