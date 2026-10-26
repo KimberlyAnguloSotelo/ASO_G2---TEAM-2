@@ -1,0 +1,3 @@
+---
+ftp_pasv_min_port: 30000
+ftp_pasv_max_port: 30100

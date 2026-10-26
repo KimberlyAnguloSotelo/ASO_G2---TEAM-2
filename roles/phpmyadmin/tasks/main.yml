@@ -1,0 +1,21 @@
+---
+- name: Instalar phpMyAdmin
+  community.general.zypper:
+    name: "{{ pma_package }}"
+    state: present
+  notify: Reiniciar apache
+
+- name: Configurar la clave secreta de phpMyAdmin
+  ansible.builtin.lineinfile:
+    path: "{{ pma_config_file }}"
+    regexp: "^\\s*\\$cfg\\['blowfish_secret'\\]"
+    line: "$cfg['blowfish_secret'] = '{{ pma_blowfish }}';"
+  no_log: true
+
+- name: Aplicar reinicio de Apache si hubo cambios
+  ansible.builtin.meta: flush_handlers
+
+- name: Comprobar que phpMyAdmin responde
+  ansible.builtin.uri:
+    url: "http://127.0.0.1{{ pma_url }}"
+    status_code: 200

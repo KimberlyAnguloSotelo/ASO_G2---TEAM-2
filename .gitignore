@@ -1,0 +1,11 @@
+# Cache de facts de Ansible (temporal)
+.facts_cache/
+
+# Archivos temporales y copias
+*.retry
+*.bak
+*.swp
+
+# Contrasena del vault: NUNCA se sube
+.vault_pass*
+vault_pass*

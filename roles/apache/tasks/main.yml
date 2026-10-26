@@ -1,0 +1,44 @@
+---
+- name: Instalar Apache y PHP
+  community.general.zypper:
+    name: "{{ apache_packages }}"
+    state: present
+
+- name: Habilitar modulos de Apache
+  ansible.builtin.shell: "a2enmod -q {{ item }} || { a2enmod {{ item }} && echo cambiado; }"
+  loop: "{{ apache_modules }}"
+  register: modulos
+  changed_when: "'cambiado' in modulos.stdout"
+  notify: Reiniciar apache
+
+- name: Copiar configuracion de rendimiento
+  ansible.builtin.template:
+    src: rendimiento.conf.j2
+    dest: /etc/apache2/conf.d/rendimiento.conf
+    mode: "0644"
+  notify: Reiniciar apache
+
+- name: Copiar pagina de prueba PHP
+  ansible.builtin.template:
+    src: index.php.j2
+    dest: "{{ apache_docroot }}/index.php"
+    mode: "0644"
+
+- name: Apache activo y habilitado
+  ansible.builtin.systemd:
+    name: apache2
+    state: started
+    enabled: true
+
+- name: Firewall activo
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Abrir HTTP en el firewall
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    immediate: true
+    state: enabled

@@ -1,0 +1,17 @@
+---
+apache_packages:
+  - apache2
+  - apache2-prefork
+  - apache2-mod_php8
+  - php8
+  - php8-mysql
+  - php8-mbstring
+  - php8-opcache
+
+apache_modules:
+  - php8
+  - filter
+  - deflate
+  - expires
+
+apache_docroot: /srv/www/htdocs

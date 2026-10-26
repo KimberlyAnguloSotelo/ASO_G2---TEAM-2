@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+# TIPO    BASE          USUARIO        DIRECCION               METODO
+# Local por socket: el administrador entra con su usuario del sistema
+local     all           all                                    peer
+# Local por TCP: con contrasena
+host      all           all            127.0.0.1/32            scram-sha-256
+host      all           all            ::1/128                 scram-sha-256
+# Remoto: SOLO cifrado (hostssl), solo el usuario y la base de la aplicacion
+hostssl   {{ pg_db }}   {{ pg_user }}  {{ pg_allowed_network }}  scram-sha-256

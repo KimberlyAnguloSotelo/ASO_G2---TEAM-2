@@ -1,0 +1,83 @@
+---
+- name: Instalar Samba
+  community.general.zypper:
+    name: "{{ samba_packages }}"
+    state: present
+
+- name: Crear grupo del recurso compartido
+  ansible.builtin.group:
+    name: "{{ samba_group }}"
+    state: present
+
+- name: Crear usuario de sistema (sin acceso a terminal)
+  ansible.builtin.user:
+    name: "{{ samba_user }}"
+    group: "{{ samba_group }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    password_lock: true
+    comment: "Usuario Samba creado por Ansible"
+
+- name: Crear directorio compartido
+  ansible.builtin.file:
+    path: "{{ samba_share_path }}"
+    state: directory
+    owner: root
+    group: "{{ samba_group }}"
+    mode: "2770"
+
+- name: Copiar configuracion de Samba con create mask (plantilla)
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    validate: testparm -s %s
+  notify: Reiniciar samba
+
+- name: Listar usuarios de Samba
+  ansible.builtin.command: pdbedit -L
+  register: smb_usuarios
+  changed_when: false
+
+- name: Crear usuario Samba
+  ansible.builtin.command: "smbpasswd -a -s {{ samba_user }}"
+  args:
+    stdin: "{{ samba_password }}\n{{ samba_password }}"
+  when: (samba_user ~ ':') not in smb_usuarios.stdout
+  changed_when: true
+  no_log: true
+
+- name: Habilitar usuario Samba
+  ansible.builtin.command: "smbpasswd -e {{ samba_user }}"
+  when: (samba_user ~ ':') not in smb_usuarios.stdout
+  changed_when: true
+
+- name: Samba activo y habilitado
+  ansible.builtin.systemd:
+    name: smb
+    state: started
+    enabled: true
+
+- name: Abrir Samba en el firewall
+  ansible.posix.firewalld:
+    service: samba
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Permitir a Samba escribir en carpetas compartidas (SELinux)
+  ansible.builtin.shell: "set -o pipefail; getsebool samba_export_all_rw | grep -q 'on$' || { setsebool -P samba_export_all_rw on && echo cambiado; }"
+  args:
+    executable: /bin/bash
+  register: selinux_samba
+  changed_when: "'cambiado' in selinux_samba.stdout"
+
+- name: Excepcion SELinux solo para Samba (dominio permisivo smbd_t)
+  ansible.builtin.shell: "set -o pipefail; semanage permissive -l | grep -qw smbd_t || { semanage permissive -a smbd_t && echo cambiado; }"
+  args:
+    executable: /bin/bash
+  register: smbd_permisivo
+  changed_when: "'cambiado' in smbd_permisivo.stdout"
