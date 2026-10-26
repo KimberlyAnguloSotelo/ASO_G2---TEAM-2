@@ -1,0 +1,30 @@
+---
+- name: Instalar vsftpd
+  community.general.zypper:
+    name: vsftpd
+    state: present
+
+- name: Copiar configuracion de vsftpd
+  ansible.builtin.copy:
+    src: vsftpd.conf
+    dest: /etc/vsftpd.conf
+  notify: Reiniciar vsftpd
+
+- name: Arrancar y habilitar vsftpd
+  ansible.builtin.service:
+    name: vsftpd
+    state: started
+    enabled: true
+
+- name: Abrir puerto FTP en el firewall
+  ansible.posix.firewalld:
+    service: ftp
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Asegurar que sshd (sFTP) este activo
+  ansible.builtin.service:
+    name: sshd
+    state: started
+    enabled: true

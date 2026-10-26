@@ -1,0 +1,23 @@
+---
+- name: Instalar MariaDB y conector Python
+  community.general.zypper:
+    name:
+      - mariadb
+      - python313-PyMySQL
+    state: present
+
+- name: Arrancar y habilitar MariaDB
+  ansible.builtin.service:
+    name: mariadb
+    state: started
+    enabled: true
+
+- name: Poner contrasena a root de MariaDB
+  community.mysql.mysql_user:
+    name: root
+    host: localhost
+    password: "{{ vault_mariadb_root_password }}"
+    login_user: root
+    login_password: "{{ vault_mariadb_root_password }}"    
+    login_unix_socket: /run/mysql/mysql.sock
+    state: present

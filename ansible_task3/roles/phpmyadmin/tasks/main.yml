@@ -1,0 +1,8 @@
+---
+- name: Instalar phpMyAdmin
+  community.general.zypper:
+    name:
+      - phpMyAdmin
+      - phpMyAdmin-apache
+    state: present
+  notify: Reiniciar apache

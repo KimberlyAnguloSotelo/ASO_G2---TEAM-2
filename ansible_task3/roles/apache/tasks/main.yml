@@ -1,0 +1,23 @@
+---
+- name: Instalar Apache y PHP
+  community.general.zypper:
+    name:
+      - apache2
+      - apache2-mod_php8
+      - php8
+      - php8-mysql
+    state: present
+  notify: Reiniciar apache
+
+- name: Arrancar y habilitar Apache
+  ansible.builtin.service:
+    name: apache2
+    state: started
+    enabled: true
+
+- name: Abrir puerto HTTP en el firewall
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    immediate: true
+    state: enabled

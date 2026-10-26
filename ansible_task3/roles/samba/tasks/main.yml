@@ -1,0 +1,53 @@
+---
+- name: Instalar samba
+  community.general.zypper:
+    name: samba
+    state: present
+
+- name: Crear usuario del sistema
+  ansible.builtin.user:
+    name: "{{ vault_samba_user }}"
+    shell: /sbin/nologin
+    state: present
+
+- name: Crear directorio compartido
+  ansible.builtin.file:
+    path: "{{ samba_share_path }}"
+    state: directory
+    owner: "{{ vault_samba_user }}"
+    mode: "0775"
+
+- name: Crear usuario samba
+  ansible.builtin.shell: >
+    (echo "{{ vault_samba_password }}"; echo "{{ vault_samba_password }}")
+    | smbpasswd -s -a {{ vault_samba_user }}
+  no_log: true
+
+- name: Configurar smb.conf
+  ansible.builtin.copy:
+    dest: /etc/samba/smb.conf
+    content: |
+      [global]
+         workgroup = {{ samba_workgroup }}
+         security = user
+
+      [{{ samba_share_name }}]
+         path = {{ samba_share_path }}
+         valid users = {{ vault_samba_user }}
+         read only = no
+         create mask = 0664
+         directory mask = 0775
+  notify: Reiniciar samba
+
+- name: Arrancar y habilitar samba
+  ansible.builtin.service:
+    name: smb
+    state: started
+    enabled: true
+
+- name: Abrir puerto samba en el firewall
+  ansible.posix.firewalld:
+    service: samba
+    permanent: true
+    immediate: true
+    state: enabled
