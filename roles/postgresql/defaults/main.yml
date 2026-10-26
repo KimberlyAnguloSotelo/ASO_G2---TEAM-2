@@ -5,5 +5,5 @@ pg_packages:
 pg_php_package: php8-pgsql
 pg_data_dir: /var/lib/pgsql/data
 pg_db: aso_pg
-pg_allowed_network: 192.168.227.0/24
+pg_allowed_network: "{{ ansible_host.split('.')[:3] | join('.') }}.0/24"
 pg_ssl_days: 365
