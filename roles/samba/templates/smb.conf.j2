@@ -1,0 +1,70 @@
+# {{ ansible_managed }}
+# Global parameters
+[global]
+	logon drive = P:
+	logon home = \\%L\%U\.9xprofile
+	logon path = \\%L\profiles\.msprofile
+	map to guest = Bad User
+	printcap name = cups
+	usershare allow guests = Yes
+	idmap config * : backend = tdb
+	cups options = raw
+	smb3 unix extensions = Yes
+
+
+[homes]
+	browseable = No
+	comment = Home Directories
+	inherit acls = Yes
+	read only = No
+	valid users = %S %D%w%S
+
+
+[profiles]
+	comment = Network Profiles Service
+	create mask = 0600
+	directory mask = 0700
+	path = %H
+	read only = No
+
+
+[users]
+	comment = All users
+	inherit acls = Yes
+	path = /home
+	read only = No
+	veto files = /aquota.user/groups/shares/
+
+
+[printers]
+	browseable = No
+	comment = All Printers
+	create mask = 0600
+	path = /var/samba/spool
+	printable = Yes
+
+
+[print$]
+	comment = Printer Drivers
+	create mask = 0664
+	directory mask = 0775
+	force group = ntadmin
+	path = /var/lib/samba/drivers
+	write list = @ntadmin root
+
+
+[files]
+	comment = All users
+	inherit acls = Yes
+	path = /opt/files
+	read only = No
+
+
+[{{ samba_share_name }}]
+	comment = Recurso compartido ASO
+	create mask = {{ samba_create_mask }}
+	directory mask = {{ samba_directory_mask }}
+	force group = {{ samba_group }}
+	path = {{ samba_share_path }}
+	read only = No
+	valid users = @{{ samba_group }}

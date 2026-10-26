@@ -4,14 +4,14 @@
     name: vsftpd
     state: present
 
-- name: Configurar vsftpd
-  ansible.builtin.lineinfile:
-    path: /etc/vsftpd.conf
-    regexp: "^#?\\s*{{ item.key }}="
-    line: "{{ item.key }}={{ item.value }}"
-  loop: "{{ ftp_options | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
+- name: Copiar configuracion de vsftpd (plantilla)
+  ansible.builtin.template:
+    src: vsftpd.conf.j2
+    dest: /etc/vsftpd.conf
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
   notify: Reiniciar vsftpd
 
 - name: vsftpd activo y habilitado

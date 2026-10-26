@@ -1,16 +1,3 @@
 ---
 ftp_pasv_min_port: 30000
 ftp_pasv_max_port: 30100
-
-ftp_options:
-  listen: "YES"
-  listen_ipv6: "NO"
-  anonymous_enable: "NO"
-  local_enable: "YES"
-  write_enable: "YES"
-  local_umask: "022"
-  chroot_local_user: "YES"
-  allow_writeable_chroot: "YES"
-  pasv_enable: "YES"
-  pasv_min_port: "{{ ftp_pasv_min_port }}"
-  pasv_max_port: "{{ ftp_pasv_max_port }}"

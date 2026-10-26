@@ -6,6 +6,7 @@
     - "!all"
     - min
   roles:
+    - common
     - apache
     - mariadb
     - phpmyadmin

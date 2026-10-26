@@ -1,0 +1,6 @@
+---
+- name: El servidor resuelve su propio nombre (/etc/hosts)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "\\s{{ ansible_facts['hostname'] }}$"
+    line: "{{ ansible_host }} {{ ansible_facts['hostname'] }}"
