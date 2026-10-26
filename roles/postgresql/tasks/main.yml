@@ -1,0 +1,49 @@
+---
+- name: Instalar PostgreSQL
+  ansible.builtin.package:
+    name:
+      - postgresql
+      - postgresql-server
+    state: present
+
+- name: Comprobar si PostgreSQL ya fue inicializado
+  ansible.builtin.stat:
+    path: /var/lib/pgsql/data/PG_VERSION
+  register: pg_data
+
+- name: Localizar initdb de PostgreSQL
+  ansible.builtin.shell: |
+    find /usr -type f -name initdb 2>/dev/null | head -n 1
+  register: ruta_initdb
+  changed_when: false
+
+- name: Comprobar que initdb existe
+  ansible.builtin.assert:
+    that:
+      - ruta_initdb.stdout | length > 0
+    fail_msg: "No se encontro initdb en VM02"
+
+- name: Inicializar PostgreSQL
+  ansible.builtin.command:
+    argv:
+      - "{{ ruta_initdb.stdout }}"
+      - -D
+      - /var/lib/pgsql/data
+  become_user: postgres
+  when: not pg_data.stat.exists
+
+- name: Iniciar y habilitar PostgreSQL
+  ansible.builtin.systemd:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Comprobar PostgreSQL
+  ansible.builtin.command:
+    cmd: runuser -u postgres -- psql -tAc "SELECT version();"
+  register: postgres_version
+  changed_when: false
+
+- name: Mostrar version de PostgreSQL
+  ansible.builtin.debug:
+    var: postgres_version.stdout
