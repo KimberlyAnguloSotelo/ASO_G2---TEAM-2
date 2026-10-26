@@ -1,0 +1,8 @@
+---
+ansible_user: "{{ vault_ansible_user }}"
+db_user: "{{ vault_db_user }}"
+db_password: "{{ vault_db_password }}"
+db_root_password: "{{ vault_db_root_password }}"
+pma_blowfish: "{{ vault_pma_blowfish }}"
+samba_user: "{{ vault_samba_user }}"
+samba_password: "{{ vault_samba_password }}"

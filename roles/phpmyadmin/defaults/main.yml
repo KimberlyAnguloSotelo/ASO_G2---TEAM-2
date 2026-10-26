@@ -1,0 +1,4 @@
+---
+pma_package: phpMyAdmin
+pma_config_file: /etc/phpMyAdmin/config.inc.php
+pma_url: /phpMyAdmin/

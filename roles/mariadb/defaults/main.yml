@@ -1,0 +1,9 @@
+---
+mariadb_packages:
+  - mariadb
+  - mariadb-client
+
+db_name: aso_db
+mariadb_bind_address: 127.0.0.1
+mariadb_buffer_pool: 128M
+mariadb_max_connections: 100

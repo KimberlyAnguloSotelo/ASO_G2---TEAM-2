@@ -1,0 +1,45 @@
+---
+- name: Instalar MariaDB
+  community.general.zypper:
+    name: "{{ mariadb_packages }}"
+    state: present
+
+- name: Copiar configuracion de MariaDB
+  ansible.builtin.template:
+    src: 99-aso.cnf.j2
+    dest: /etc/my.cnf.d/99-aso.cnf
+    mode: "0644"
+  notify: Reiniciar mariadb
+
+- name: MariaDB activo y habilitado
+  ansible.builtin.systemd:
+    name: mariadb
+    state: started
+    enabled: true
+
+- name: Aplicar la configuracion antes de crear la base
+  ansible.builtin.meta: flush_handlers
+
+- name: Asegurar MariaDB, crear base de datos y usuario
+  ansible.builtin.command: mariadb -u root
+  args:
+    stdin: |
+      DELETE FROM mysql.global_priv WHERE User='';
+      DROP DATABASE IF EXISTS test;
+      CREATE DATABASE IF NOT EXISTS `{{ db_name }}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      CREATE USER IF NOT EXISTS '{{ db_user }}'@'localhost' IDENTIFIED BY '{{ db_password }}';
+      ALTER USER '{{ db_user }}'@'localhost' IDENTIFIED BY '{{ db_password }}';
+      GRANT ALL PRIVILEGES ON `{{ db_name }}`.* TO '{{ db_user }}'@'localhost';
+      FLUSH PRIVILEGES;
+  environment:
+    MYSQL_PWD: "{{ db_root_password }}"
+  changed_when: false
+  no_log: true
+
+- name: Comprobar que la base existe
+  ansible.builtin.command: mariadb -u root -N -e "SHOW DATABASES LIKE '{{ db_name }}'"
+  environment:
+    MYSQL_PWD: "{{ db_root_password }}"
+  register: db_check
+  changed_when: false
+  failed_when: db_name not in db_check.stdout

@@ -1,0 +1,5 @@
+[servidor]
+master ansible_host=192.168.227.129 ansible_connection=local
+
+[cliente]
+destino ansible_host=192.168.227.132

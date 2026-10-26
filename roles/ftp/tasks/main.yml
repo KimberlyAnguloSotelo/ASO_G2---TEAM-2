@@ -1,0 +1,42 @@
+---
+- name: Instalar vsftpd
+  community.general.zypper:
+    name: vsftpd
+    state: present
+
+- name: Configurar vsftpd
+  ansible.builtin.lineinfile:
+    path: /etc/vsftpd.conf
+    regexp: "^#?\\s*{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  loop: "{{ ftp_options | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Reiniciar vsftpd
+
+- name: vsftpd activo y habilitado
+  ansible.builtin.systemd:
+    name: vsftpd
+    state: started
+    enabled: true
+
+- name: Abrir FTP en el firewall
+  ansible.posix.firewalld:
+    service: ftp
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Abrir puertos pasivos de FTP
+  ansible.posix.firewalld:
+    port: "{{ ftp_pasv_min_port }}-{{ ftp_pasv_max_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Permitir a FTP escribir (SELinux)
+  ansible.builtin.shell: "set -o pipefail; getsebool ftpd_full_access | grep -q 'on$' || { setsebool -P ftpd_full_access on && echo cambiado; }"
+  args:
+    executable: /bin/bash
+  register: selinux_ftp
+  changed_when: "'cambiado' in selinux_ftp.stdout"

@@ -1,0 +1,11 @@
+---
+samba_packages:
+  - samba
+  - samba-client
+
+samba_group: smbgrupo
+samba_share_name: compartido
+samba_share_path: /srv/samba/compartido
+
+samba_create_mask: "0660"
+samba_directory_mask: "2770"

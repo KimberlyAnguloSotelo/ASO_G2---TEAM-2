@@ -1,0 +1,13 @@
+---
+- name: Despliegue LAMP, Samba y FTP en openSUSE 16
+  hosts: cliente
+  become: true
+  gather_subset:
+    - "!all"
+    - min
+  roles:
+    - apache
+    - mariadb
+    - phpmyadmin
+    - samba
+    - ftp
