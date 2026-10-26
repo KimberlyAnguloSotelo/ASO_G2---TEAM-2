@@ -1,0 +1,7 @@
+---
+- name: Configurar PostgreSQL con Ansible
+  hosts: servidor
+  become: true
+
+  roles:
+    - postgresql
