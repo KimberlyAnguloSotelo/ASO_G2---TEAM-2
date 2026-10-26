@@ -1,0 +1,2 @@
+[servidor]
+vm02 ansible_host=192.168.209.133 ansible_user=luis

@@ -1,0 +1,12 @@
+---
+- name: Configuracion de servicios del equipo
+  hosts: servidor
+  become: true
+
+  roles:
+    - ftp
+    - samba
+    - apache
+    - mariadb
+    - phpmyadmin
+    - postgresql

@@ -1,0 +1,5 @@
+---
+- name: Instalar phpMyAdmin
+  ansible.builtin.package:
+    name: phpMyAdmin
+    state: present

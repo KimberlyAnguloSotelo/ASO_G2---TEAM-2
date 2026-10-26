@@ -1,0 +1,4 @@
+---
+nombre_proyecto: ASO_G2_TEAM_2
+servidor_web: apache2
+base_datos_mariadb: practica_ansible
