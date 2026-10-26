@@ -1,0 +1,13 @@
+---
+- name: Despliegue LAMP Samba FTP
+  hosts: servidores
+  become: true
+  gather_facts: true
+
+  roles:
+    - apache
+    - mariadb
+    - phpmyadmin
+    - samba
+    - ftp
+

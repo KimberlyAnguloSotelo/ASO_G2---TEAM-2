@@ -1,0 +1,97 @@
+---
+- name: Asegurar instalacion de Apache y PHP
+  ansible.builtin.package:
+    name: "{{ apache_paquetes }}"
+    state: present
+
+- name: Consultar modulos habilitados de Apache
+  ansible.builtin.command: a2enmod -l
+  register: apache_modulos
+  changed_when: false
+
+- name: Habilitar modulo PHP8
+  ansible.builtin.command: a2enmod php8
+  when: "'php8' not in apache_modulos.stdout.split()"
+  notify: Reiniciar Apache
+
+- name: Crear directorio web
+  ansible.builtin.file:
+    path: "{{ apache_directorio_web }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Crear pagina de prueba
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ apache_directorio_web }}/ansible-test.html"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Verificar si HTTP esta permitido en el firewall
+  ansible.builtin.command:
+    cmd: firewall-cmd --permanent --zone=public --query-service=http
+  register: http_permitido
+  changed_when: false
+  failed_when: http_permitido.rc not in [0, 1]
+
+- name: Permitir HTTP en el firewall
+  ansible.builtin.command:
+    cmd: firewall-cmd --permanent --zone=public --add-service=http
+  when: http_permitido.rc == 1
+  notify: Recargar firewall
+
+- name: Habilitar e iniciar Apache
+  ansible.builtin.systemd_service:
+    name: "{{ apache_servicio }}"
+    enabled: true
+    state: started
+
+- name: Aplicar reinicios pendientes
+  ansible.builtin.meta: flush_handlers
+
+- name: Verificar respuesta HTTP de Apache
+  ansible.builtin.uri:
+    url: http://127.0.0.1/ansible-test.html
+    status_code: 200
+
+- name: Probar ejecucion PHP desde Apache
+
+  tags:
+    - never
+    - prueba_php
+
+  block:
+    - name: Crear archivo PHP temporal
+      ansible.builtin.copy:
+        dest: "{{ apache_directorio_web }}/test-php.php"
+        content: |
+          <?php
+          header('Content-Type: text/plain');
+          echo "PHP_OK " . PHP_VERSION;
+          ?>
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Verificar interpretacion PHP
+      ansible.builtin.uri:
+        url: http://127.0.0.1/test-php.php
+        return_content: true
+        status_code: 200
+      register: resultado_php
+      failed_when: >
+        resultado_php.status != 200 or
+        'PHP_OK' not in resultado_php.content
+
+    - name: Mostrar version PHP
+      ansible.builtin.debug:
+        msg: "{{ resultado_php.content }}"
+
+  always:
+    - name: Eliminar archivo PHP temporal
+      ansible.builtin.file:
+        path: "{{ apache_directorio_web }}/test-php.php"
+        state: absent

@@ -1,0 +1,7 @@
+---
+phpmyadmin_paquetes:
+  - phpMyAdmin
+  - phpMyAdmin-apache
+
+phpmyadmin_servicio: apache2
+phpmyadmin_url: http://127.0.0.1/phpMyAdmin/

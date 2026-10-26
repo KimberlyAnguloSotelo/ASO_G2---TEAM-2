@@ -1,0 +1,40 @@
+---
+- name: Diagnosticar autenticacion MariaDB
+  hosts: servidores
+  gather_facts: false
+
+  tasks:
+    - name: Probar credenciales cifradas
+      ansible.builtin.command:
+        argv:
+          - python3.13
+          - -c
+          - |
+            import os
+            import pymysql
+
+            try:
+                conexion = pymysql.connect(
+                    user="root",
+                    password=os.environ["DB_PASSWORD"],
+                    unix_socket="/run/mysql/mysql.sock",
+                    connect_timeout=5
+                )
+                conexion.close()
+                print("AUTH_OK")
+            except pymysql.err.OperationalError as error:
+                if error.args[0] == 1045:
+                    print("AUTH_DENIED")
+                else:
+                    print("DB_CONNECTION_ERROR")
+            except Exception:
+                print("OTHER_ERROR")
+      environment:
+        DB_PASSWORD: "{{ vault_mariadb_root_password }}"
+      register: prueba_mariadb
+      changed_when: false
+      no_log: true
+
+    - name: Mostrar resultado seguro
+      ansible.builtin.debug:
+        msg: "{{ prueba_mariadb.stdout }}"

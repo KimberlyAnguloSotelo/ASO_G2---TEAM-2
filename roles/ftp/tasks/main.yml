@@ -1,0 +1,218 @@
+---
+- name: Asegurar instalacion de FTP
+  ansible.builtin.package:
+    name: "{{ ftp_paquetes }}"
+    state: present
+
+- name: Generar hash seguro de contraseña FTP
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - passwd
+      - -6
+      - -salt
+      - "{{ vault_ftp_salt }}"
+      - -stdin
+    stdin: "{{ vault_ftp_password }}"
+  register: ftp_password_hash
+  changed_when: false
+  no_log: true
+
+- name: Crear usuario FTP del sistema
+  ansible.builtin.user:
+    name: "{{ ftp_usuario }}"
+    home: "{{ ftp_directorio }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    password: "{{ ftp_password_hash.stdout }}"
+    state: present
+  no_log: true
+
+- name: Permitir shell nologin para autenticacion FTP PAM
+  ansible.builtin.lineinfile:
+    path: /etc/shells
+    line: /usr/sbin/nologin
+    state: present
+
+- name: Crear directorio principal FTP
+  ansible.builtin.file:
+    path: "{{ ftp_directorio }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Crear directorio de subidas
+  ansible.builtin.file:
+    path: "{{ ftp_carpeta_subidas }}"
+    state: directory
+    owner: "{{ ftp_usuario }}"
+    group: "{{ ftp_usuario }}"
+    mode: "0750"
+
+- name: Crear lista de usuarios FTP autorizados
+  ansible.builtin.template:
+    src: usuarios-ftp.j2
+    dest: /etc/vsftpd.ansible.allowed_users
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reiniciar FTP
+
+- name: Crear certificado TLS para laboratorio
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -newkey
+      - rsa:3072
+      - -keyout
+      - "{{ ftp_clave_privada }}"
+      - -out
+      - "{{ ftp_certificado }}"
+      - -days
+      - "365"
+      - -subj
+      - "/CN={{ inventory_hostname }}"
+      - -addext
+      - "subjectAltName=IP:{{ inventory_hostname }}"
+    creates: "{{ ftp_certificado }}"
+  notify: Reiniciar FTP
+
+- name: Proteger clave privada TLS
+  ansible.builtin.file:
+    path: "{{ ftp_clave_privada }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Respaldar configuracion original FTP
+  ansible.builtin.copy:
+    src: /etc/vsftpd.conf
+    dest: /etc/vsftpd.conf.pre-ansible
+    remote_src: true
+    force: false
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configurar FTP seguro
+  ansible.builtin.lineinfile:
+    path: /etc/vsftpd.conf
+    regexp: '^\s*{{ item.key }}\s*='
+    line: "{{ item.key }}={{ item.value }}"
+    state: present
+  loop:
+    - { key: anonymous_enable, value: "NO" }
+    - { key: local_enable, value: "YES" }
+    - { key: write_enable, value: "YES" }
+    - { key: anon_upload_enable, value: "NO" }
+    - { key: chroot_local_user, value: "YES" }
+    - { key: allow_writeable_chroot, value: "NO" }
+    - { key: local_root, value: "{{ ftp_directorio }}" }
+    - { key: userlist_enable, value: "YES" }
+    - { key: userlist_deny, value: "NO" }
+    - { key: userlist_file, value: "/etc/vsftpd.ansible.allowed_users" }
+    - { key: pasv_enable, value: "YES" }
+    - { key: pasv_min_port, value: "{{ ftp_puerto_pasivo_min }}" }
+    - { key: pasv_max_port, value: "{{ ftp_puerto_pasivo_max }}" }
+    - { key: ssl_enable, value: "YES" }
+    - { key: ssl_sslv2, value: "NO" }
+    - { key: ssl_sslv3, value: "NO" }
+    - { key: force_local_logins_ssl, value: "YES" }
+    - { key: force_local_data_ssl, value: "YES" }
+    - { key: rsa_cert_file, value: "{{ ftp_certificado }}" }
+    - { key: rsa_private_key_file, value: "{{ ftp_clave_privada }}" }
+  notify: Reiniciar FTP
+
+- name: Configurar contexto SELinux del directorio FTP
+  community.general.sefcontext:
+    target: "{{ ftp_directorio }}(/.*)?"
+    setype: public_content_t
+    state: present
+
+- name: Configurar contexto SELinux de subidas
+  community.general.sefcontext:
+    target: "{{ ftp_carpeta_subidas }}(/.*)?"
+    setype: public_content_rw_t
+    state: present
+
+- name: Aplicar contextos SELinux
+  ansible.builtin.command:
+    argv:
+      - restorecon
+      - -RFv
+      - "{{ ftp_directorio }}"
+  register: restauracion_ftp
+  changed_when: restauracion_ftp.stdout | length > 0
+
+- name: Consultar permiso de escritura SELinux FTP
+  ansible.builtin.command:
+    cmd: getsebool ftpd_anon_write
+  register: ftp_boolean
+  changed_when: false
+
+- name: Habilitar escritura FTP en SELinux
+  ansible.builtin.command:
+    cmd: setsebool -P ftpd_anon_write on
+  when: "'--> on' not in ftp_boolean.stdout"
+
+- name: Habilitar e iniciar FTP
+  ansible.builtin.systemd_service:
+    name: vsftpd
+    enabled: true
+    state: started
+
+- name: Definir reglas del firewall FTP
+  ansible.builtin.set_fact:
+    ftp_reglas_firewall:
+      - 'rule family="ipv4" source address="{{ ftp_ip_controladora }}" service name="ftp" accept'
+      - 'rule family="ipv4" source address="{{ ftp_ip_controladora }}" port port="30000-30100" protocol="tcp" accept'
+
+- name: Consultar reglas FTP del firewall
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone=public
+      - "--query-rich-rule={{ item }}"
+  loop: "{{ ftp_reglas_firewall }}"
+  register: ftp_reglas_estado
+  changed_when: false
+  failed_when: ftp_reglas_estado.rc not in [0, 1]
+
+- name: Agregar reglas FTP para la controladora
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone=public
+      - "--add-rich-rule={{ item.item }}"
+  loop: "{{ ftp_reglas_estado.results }}"
+  when: item.rc == 1
+  notify: Recargar firewall FTP
+
+- name: Consultar apertura global del servicio FTP
+  ansible.builtin.command:
+    cmd: firewall-cmd --permanent --zone=public --query-service=ftp
+  register: ftp_global
+  changed_when: false
+  failed_when: ftp_global.rc not in [0, 1]
+
+- name: Eliminar apertura global FTP
+  ansible.builtin.command:
+    cmd: firewall-cmd --permanent --zone=public --remove-service=ftp
+  when: ftp_global.rc == 0
+  notify: Recargar firewall FTP
+
+- name: Aplicar configuracion pendiente de FTP
+  ansible.builtin.meta: flush_handlers
+
+- name: Verificar servicio FTP
+  ansible.builtin.command:
+    cmd: systemctl is-active vsftpd
+  register: ftp_estado
+  changed_when: false
+  failed_when: ftp_estado.stdout != "active"

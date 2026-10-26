@@ -1,0 +1,11 @@
+---
+apache_paquetes:
+  - apache2
+  - apache2-prefork
+  - php8
+  - php8-cli
+  - apache2-mod_php8
+  - php8-mysql
+
+apache_servicio: apache2
+apache_directorio_web: /srv/www/htdocs

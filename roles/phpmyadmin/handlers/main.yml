@@ -1,0 +1,5 @@
+---
+- name: Reiniciar Apache phpMyAdmin
+  ansible.builtin.systemd_service:
+    name: apache2
+    state: restarted

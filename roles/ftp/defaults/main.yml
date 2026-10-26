@@ -1,0 +1,15 @@
+---
+ftp_paquetes:
+  - vsftpd
+  - openssl
+
+ftp_usuario: ftp_ansible
+ftp_directorio: /srv/ftp/ansible
+ftp_carpeta_subidas: /srv/ftp/ansible/upload
+
+ftp_puerto_pasivo_min: 30000
+ftp_puerto_pasivo_max: 30100
+ftp_ip_controladora: "192.168.199.131/32"
+
+ftp_certificado: /etc/ssl/certs/vsftpd-ansible.crt
+ftp_clave_privada: /etc/ssl/private/vsftpd-ansible.key

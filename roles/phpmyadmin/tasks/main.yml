@@ -1,0 +1,39 @@
+---
+- name: Asegurar instalacion de phpMyAdmin
+  ansible.builtin.package:
+    name: "{{ phpmyadmin_paquetes }}"
+    state: present
+
+- name: Configurar acceso seguro a phpMyAdmin
+  ansible.builtin.template:
+    src: acceso-phpmyadmin.conf.j2
+    dest: /etc/apache2/conf.d/zz-ansible-phpmyadmin.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reiniciar Apache phpMyAdmin
+
+- name: Verificar sintaxis de Apache
+  ansible.builtin.command:
+    cmd: apachectl configtest
+  register: sintaxis_apache
+  changed_when: false
+
+- name: Aplicar cambios de Apache
+  ansible.builtin.meta: flush_handlers
+
+- name: Verificar servicio Apache
+  ansible.builtin.systemd_service:
+    name: "{{ phpmyadmin_servicio }}"
+    enabled: true
+    state: started
+
+- name: Comprobar respuesta local phpMyAdmin
+  ansible.builtin.uri:
+    url: "{{ phpmyadmin_url }}"
+    status_code: 200
+  register: respuesta_phpmyadmin
+
+- name: Mostrar resultado phpMyAdmin
+  ansible.builtin.debug:
+    msg: "phpMyAdmin responde HTTP {{ respuesta_phpmyadmin.status }}"

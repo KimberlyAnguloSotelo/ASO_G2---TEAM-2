@@ -1,0 +1,11 @@
+---
+ansible_python_interpreter: /usr/bin/python3.13
+
+apache_service: apache2
+mariadb_service: mariadb
+samba_service: smb
+ftp_service: vsftpd
+
+samba_share_path: /srv/samba/compartido
+samba_create_mask: "0664"
+samba_directory_mask: "0775"

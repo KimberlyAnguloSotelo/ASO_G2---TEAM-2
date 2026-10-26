@@ -1,0 +1,75 @@
+---
+- name: Asegurar instalacion de MariaDB
+  ansible.builtin.package:
+    name: "{{ mariadb_paquetes }}"
+    state: present
+
+- name: Habilitar e iniciar MariaDB
+  ansible.builtin.systemd_service:
+    name: "{{ mariadb_servicio }}"
+    enabled: true
+    state: started
+
+- name: Verificar que MariaDB esta activo
+  ansible.builtin.command:
+    cmd: systemctl is-active mariadb
+  register: estado_mariadb
+  changed_when: false
+  failed_when: estado_mariadb.stdout != "active"
+
+- name: Verificar conexion segura a MariaDB
+  become: false
+  ansible.builtin.command:
+    argv:
+      - python3.13
+      - -c
+      - |
+        import os
+        import pymysql
+
+        conexion = pymysql.connect(
+            user="root",
+            password=os.environ["DB_PASSWORD"],
+            unix_socket="/run/mysql/mysql.sock"
+        )
+
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT VERSION()")
+            print(cursor.fetchone()[0])
+
+        conexion.close()
+  environment:
+    DB_PASSWORD: "{{ vault_mariadb_root_password }}"
+  register: resultado_mariadb
+  changed_when: false
+  no_log: true
+
+- name: Mostrar version MariaDB
+  ansible.builtin.debug:
+    msg: "MariaDB funcionando. Version {{ resultado_mariadb.stdout }}"
+
+- name: Crear base de datos de practica
+  become: false
+  community.mysql.mysql_db:
+    name: "{{ mariadb_base_datos }}"
+    state: present
+    encoding: utf8mb4
+    login_user: root
+    login_password: "{{ vault_mariadb_root_password }}"
+    login_unix_socket: "{{ mariadb_socket }}"
+    config_file: ""
+  no_log: true
+
+- name: Crear usuario y asignar permisos
+  become: false
+  community.mysql.mysql_user:
+    name: "{{ mariadb_usuario }}"
+    host: localhost
+    password: "{{ vault_mariadb_app_password }}"
+    priv: "{{ mariadb_base_datos }}.*:ALL"
+    state: present
+    login_user: root
+    login_password: "{{ vault_mariadb_root_password }}"
+    login_unix_socket: "{{ mariadb_socket }}"
+    config_file: ""
+  no_log: true

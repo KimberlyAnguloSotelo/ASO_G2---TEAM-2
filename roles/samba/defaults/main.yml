@@ -1,0 +1,15 @@
+---
+samba_paquetes:
+  - samba
+  - samba-client
+  - policycoreutils-python-utils
+  - python313-selinux
+
+samba_usuario: samba_ansible
+samba_recurso: compartido
+samba_directorio: /srv/samba/compartido
+
+samba_create_mask: "0664"
+samba_directory_mask: "0775"
+
+samba_red_permitida: "192.168.199.131/32"

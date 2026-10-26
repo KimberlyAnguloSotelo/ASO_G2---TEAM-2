@@ -1,0 +1,10 @@
+---
+mariadb_paquetes:
+  - mariadb
+  - mariadb-client
+  - python313-PyMySQL
+
+mariadb_servicio: mariadb
+mariadb_base_datos: practica_ansible
+mariadb_usuario: app_ansible
+mariadb_socket: /run/mysql/mysql.sock

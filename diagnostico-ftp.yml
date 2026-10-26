@@ -1,0 +1,38 @@
+---
+- name: Diagnosticar contraseña FTP
+  hosts: servidores
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Calcular hash usando la contraseña de Vault
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - passwd
+          - "-6"
+          - -salt
+          - "{{ vault_ftp_salt }}"
+          - -stdin
+        stdin: "{{ vault_ftp_password }}"
+        stdin_add_newline: true
+      register: hash_esperado
+      changed_when: false
+      no_log: true
+
+    - name: Consultar contraseña cifrada del usuario Linux
+      ansible.builtin.command:
+        argv:
+          - getent
+          - shadow
+          - ftp_ansible
+      register: usuario_shadow
+      changed_when: false
+      no_log: true
+
+    - name: Comparar contraseñas sin mostrarlas
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'COINCIDE'
+             if hash_esperado.stdout == usuario_shadow.stdout.split(':')[1]
+             else 'NO_COINCIDE' }}

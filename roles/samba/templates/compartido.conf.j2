@@ -1,0 +1,9 @@
+[{{ samba_recurso }}]
+    comment = Recurso compartido Ansible
+    path = {{ samba_directorio }}
+    browseable = yes
+    read only = no
+    guest ok = no
+    valid users = {{ samba_usuario }}
+    create mask = {{ samba_create_mask }}
+    directory mask = {{ samba_directory_mask }}

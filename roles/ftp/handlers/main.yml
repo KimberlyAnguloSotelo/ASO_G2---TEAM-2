@@ -1,0 +1,9 @@
+---
+- name: Reiniciar FTP
+  ansible.builtin.systemd_service:
+    name: vsftpd
+    state: restarted
+
+- name: Recargar firewall FTP
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload

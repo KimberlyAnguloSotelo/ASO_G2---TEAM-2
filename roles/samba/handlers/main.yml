@@ -1,0 +1,9 @@
+---
+- name: Reiniciar Samba
+  ansible.builtin.systemd_service:
+    name: smb
+    state: restarted
+
+- name: Recargar firewall Samba
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload

@@ -1,0 +1,126 @@
+---
+- name: Asegurar instalacion de Samba y SELinux
+  ansible.builtin.package:
+    name: "{{ samba_paquetes }}"
+    state: present
+
+- name: Crear grupo Samba
+  ansible.builtin.group:
+    name: "{{ samba_usuario }}"
+    state: present
+
+- name: Crear usuario del sistema
+  ansible.builtin.user:
+    name: "{{ samba_usuario }}"
+    group: "{{ samba_usuario }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Crear directorio compartido
+  ansible.builtin.file:
+    path: "{{ samba_directorio }}"
+    state: directory
+    owner: "{{ samba_usuario }}"
+    group: "{{ samba_usuario }}"
+    mode: "0775"
+
+- name: Configurar contexto SELinux para Samba
+  community.general.sefcontext:
+    target: "{{ samba_directorio }}(/.*)?"
+    setype: samba_share_t
+    state: present
+
+- name: Aplicar contexto SELinux
+  ansible.builtin.command:
+    argv:
+      - restorecon
+      - -R
+      - -v
+      - "{{ samba_directorio }}"
+  register: resultado_restorecon
+  changed_when: resultado_restorecon.stdout | length > 0
+
+- name: Verificar usuario en base de datos Samba
+  ansible.builtin.command:
+    argv:
+      - pdbedit
+      - -L
+      - -u
+      - "{{ samba_usuario }}"
+  register: registro_samba
+  changed_when: false
+  failed_when: false
+
+- name: Crear usuario Samba con contraseña cifrada
+  ansible.builtin.command:
+    argv:
+      - smbpasswd
+      - -s
+      - -a
+      - "{{ samba_usuario }}"
+    stdin: "{{ vault_samba_password }}\n{{ vault_samba_password }}\n"
+    stdin_add_newline: false
+  when: "(samba_usuario ~ ':') not in registro_samba.stdout"
+  no_log: true
+
+- name: Crear configuracion del recurso compartido
+  ansible.builtin.template:
+    src: compartido.conf.j2
+    dest: /etc/samba/ansible-compartido.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reiniciar Samba
+
+- name: Incorporar recurso sin borrar configuracion existente
+  ansible.builtin.blockinfile:
+    path: /etc/samba/smb.conf
+    marker: "# {mark} ANSIBLE RECURSO COMPARTIDO"
+    block: |
+      include = /etc/samba/ansible-compartido.conf
+    insertafter: EOF
+    backup: true
+    validate: "testparm -s %s"
+  notify: Reiniciar Samba
+
+- name: Verificar configuracion Samba
+  ansible.builtin.command:
+    cmd: testparm -s
+  changed_when: false
+
+- name: Verificar regla Samba del firewall
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone=public
+      - "--query-rich-rule={{ samba_regla_firewall }}"
+  vars:
+    samba_regla_firewall: >-
+      rule family="ipv4" source address="{{ samba_red_permitida }}" service name="samba" accept
+  register: estado_firewall_samba
+  changed_when: false
+  failed_when: estado_firewall_samba.rc not in [0, 1]
+
+- name: Permitir Samba desde la controladora
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone=public
+      - "--add-rich-rule={{ samba_regla_firewall }}"
+  vars:
+    samba_regla_firewall: >-
+      rule family="ipv4" source address="{{ samba_red_permitida }}" service name="samba" accept
+  when: estado_firewall_samba.rc == 1
+  notify: Recargar firewall Samba
+
+- name: Habilitar e iniciar Samba
+  ansible.builtin.systemd_service:
+    name: smb
+    enabled: true
+    state: started
+
+- name: Aplicar configuraciones pendientes
+  ansible.builtin.meta: flush_handlers
