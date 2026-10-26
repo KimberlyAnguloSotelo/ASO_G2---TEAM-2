@@ -1,0 +1,10 @@
+---
+- name: Configurar servicios de la Task 3
+  hosts: servidor
+  become: true
+
+  roles:
+    - ftp
+    - samba
+    - web
+    - mariadb

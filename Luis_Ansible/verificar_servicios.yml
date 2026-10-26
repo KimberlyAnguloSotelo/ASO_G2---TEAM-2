@@ -1,0 +1,21 @@
+---
+- name: Verificar servicios de la Task 3
+  hosts: servidor
+  become: true
+
+  tasks:
+    - name: Comprobar Apache
+      ansible.builtin.command: systemctl is-active apache2
+      changed_when: false
+
+    - name: Comprobar MariaDB
+      ansible.builtin.command: systemctl is-active mariadb
+      changed_when: false
+
+    - name: Comprobar FTP
+      ansible.builtin.command: systemctl is-active vsftpd
+      changed_when: false
+
+    - name: Comprobar Samba
+      ansible.builtin.command: systemctl is-active smb
+      changed_when: false

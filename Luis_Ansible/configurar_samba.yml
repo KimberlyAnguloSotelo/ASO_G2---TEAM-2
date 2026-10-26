@@ -1,0 +1,54 @@
+---
+- name: Configurar servidor Samba
+  hosts: servidor
+  become: true
+
+  tasks:
+    - name: Instalar Samba
+      community.general.zypper:
+        name: samba
+        state: present
+
+    - name: Crear carpeta compartida
+      ansible.builtin.file:
+        path: /srv/samba/compartido
+        state: directory
+        owner: luis
+        group: users
+        mode: '0770'
+
+    - name: Copiar configuracion
+      ansible.builtin.copy:
+        src: smb.conf
+        dest: /etc/samba/smb.conf
+        owner: root
+        group: root
+        mode: '0644'
+        validate: 'testparm -s %s'
+      notify: Reiniciar Samba
+
+    - name: Activar Samba
+      ansible.builtin.systemd:
+        name: smb
+        enabled: true
+        state: started
+
+    - name: Abrir firewall Samba
+      ansible.posix.firewalld:
+        service: samba
+        permanent: true
+        immediate: true
+        state: enabled
+
+  handlers:
+    - name: Reiniciar Samba
+      ansible.builtin.systemd:
+        name: smb
+        state: restarted
+
+    - name: Configurar nombre local de VM02
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^.*vm02\.localdomain.*$'
+        line: '192.168.209.133 vm02.localdomain vm02'
+        state: present
