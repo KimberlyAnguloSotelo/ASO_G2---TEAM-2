@@ -1,0 +1,82 @@
+---
+- name: Instalar PostgreSQL y librerias
+  community.general.zypper:
+    name:
+      - postgresql-server
+      - postgresql-contrib
+      - php8-pgsql
+      - python313-psycopg2
+    state: present
+  notify: Reiniciar apache
+
+- name: Arrancar y habilitar PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Poner contrasena al usuario postgres
+  community.postgresql.postgresql_user:
+    name: postgres
+    password: "{{ vault_pg_postgres_password }}"
+  become_user: postgres
+  no_log: true
+
+- name: Crear usuario nuevo
+  community.postgresql.postgresql_user:
+    name: "{{ pg_user }}"
+    password: "{{ vault_pg_user_password }}"
+  become_user: postgres
+  no_log: true
+
+- name: Crear base de datos nueva
+  community.postgresql.postgresql_db:
+    name: "{{ pg_database }}"
+    owner: "{{ pg_user }}"
+  become_user: postgres
+
+- name: Configurar acceso remoto en pg_hba.conf
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: /var/lib/pgsql/data/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  notify: Reiniciar postgresql
+
+- name: Abrir puerto PostgreSQL en el firewall
+  ansible.posix.firewalld:
+    port: 5432/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+
+- name: Generar certificado SSL autofirmado
+  ansible.builtin.command:
+    cmd: >
+      openssl req -new -x509 -days 365 -nodes -text
+      -out /var/lib/pgsql/data/server.crt
+      -keyout /var/lib/pgsql/data/server.key
+      -subj "/CN={{ ansible_hostname }}"
+    creates: /var/lib/pgsql/data/server.crt
+
+- name: Permisos de la llave SSL
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  loop:
+    - /var/lib/pgsql/data/server.crt
+    - /var/lib/pgsql/data/server.key
+
+- name: Activar acceso remoto y SSL
+  ansible.builtin.blockinfile:
+    path: /var/lib/pgsql/data/postgresql.conf
+    marker: "# {mark} ANSIBLE"
+    block: |
+      listen_addresses = '*'
+      ssl = on
+      ssl_cert_file = 'server.crt'
+      ssl_key_file = 'server.key'
+  notify: Reiniciar postgresql

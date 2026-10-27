@@ -1,0 +1,10 @@
+[global]
+   workgroup = {{ samba_workgroup }}
+   security = user
+
+[{{ samba_share_name }}]
+   path = {{ samba_share_path }}
+   valid users = {{ vault_samba_user }}
+   read only = no
+   create mask = 0664
+   directory mask = 0775

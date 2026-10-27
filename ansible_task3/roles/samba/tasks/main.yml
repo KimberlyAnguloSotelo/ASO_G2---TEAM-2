@@ -24,19 +24,9 @@
   no_log: true
 
 - name: Configurar smb.conf
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: smb.conf.j2
     dest: /etc/samba/smb.conf
-    content: |
-      [global]
-         workgroup = {{ samba_workgroup }}
-         security = user
-
-      [{{ samba_share_name }}]
-         path = {{ samba_share_path }}
-         valid users = {{ vault_samba_user }}
-         read only = no
-         create mask = 0664
-         directory mask = 0775
   notify: Reiniciar samba
 
 - name: Arrancar y habilitar samba
