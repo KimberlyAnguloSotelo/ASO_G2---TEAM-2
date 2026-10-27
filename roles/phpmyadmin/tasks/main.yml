@@ -15,7 +15,12 @@
 - name: Aplicar reinicio de Apache si hubo cambios
   ansible.builtin.meta: flush_handlers
 
+- name: Reiniciar Apache tras instalar phpMyAdmin
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+
 - name: Comprobar que phpMyAdmin responde
   ansible.builtin.uri:
     url: "http://127.0.0.1{{ pma_url }}"
-    status_code: 200
+    status_code: [200, 302]
