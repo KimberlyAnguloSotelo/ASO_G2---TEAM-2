@@ -1,0 +1,15 @@
+---
+postgresql_paquetes:
+  - postgresql
+  - postgresql-server
+  - php8-pgsql
+  - python313-psycopg2
+
+postgresql_servicio: postgresql
+postgresql_puerto: 5432
+
+postgresql_base_datos: practica_postgres
+postgresql_usuario: app_postgres
+
+postgresql_ip_servidor: "192.168.199.133"
+postgresql_ip_cliente: "192.168.199.131"

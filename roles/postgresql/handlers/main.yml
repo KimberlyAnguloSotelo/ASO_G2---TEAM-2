@@ -1,0 +1,14 @@
+---
+- name: Reiniciar Apache PostgreSQL
+  ansible.builtin.systemd_service:
+    name: apache2
+    state: restarted
+
+- name: Reiniciar servicio PostgreSQL
+  ansible.builtin.systemd_service:
+    name: postgresql
+    state: restarted
+
+- name: Recargar firewall PostgreSQL
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload

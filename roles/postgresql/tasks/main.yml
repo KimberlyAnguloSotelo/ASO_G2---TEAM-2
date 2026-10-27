@@ -1,0 +1,216 @@
+---
+- name: Instalar PostgreSQL y bibliotecas PHP Python
+  ansible.builtin.package:
+    name: "{{ postgresql_paquetes }}"
+    state: present
+  register: instalacion_postgresql
+  notify: Reiniciar Apache PostgreSQL
+
+- name: Habilitar e iniciar PostgreSQL
+  ansible.builtin.systemd_service:
+    name: "{{ postgresql_servicio }}"
+    enabled: true
+    state: started
+
+- name: Verificar version PostgreSQL
+  ansible.builtin.command:
+    cmd: psql --version
+  register: version_postgresql
+  changed_when: false
+
+- name: Mostrar version PostgreSQL
+  ansible.builtin.debug:
+    msg: "{{ version_postgresql.stdout }}"
+
+- name: Verificar disponibilidad PostgreSQL
+  ansible.builtin.command:
+    cmd: pg_isready -h 127.0.0.1 -p 5432
+  register: estado_postgresql
+  changed_when: false
+  failed_when: estado_postgresql.rc != 0
+
+- name: Aplicar cambios de Apache
+  ansible.builtin.meta: flush_handlers
+
+- name: Verificar biblioteca PHP PostgreSQL
+  ansible.builtin.command:
+    cmd: php -m
+  register: modulos_php
+  changed_when: false
+  failed_when: "'pdo_pgsql' not in (modulos_php.stdout | lower)"
+
+- name: Mostrar resultado PHP PostgreSQL
+  ansible.builtin.debug:
+    msg: "Biblioteca PHP PostgreSQL instalada correctamente"
+
+- name: Configurar contraseña del administrador PostgreSQL
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: postgres
+    password: "{{ vault_postgres_admin_password }}"
+    state: present
+  no_log: true
+
+- name: Crear usuario PostgreSQL de aplicacion
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgresql_usuario }}"
+    password: "{{ vault_postgres_app_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  no_log: true
+
+- name: Crear base de datos PostgreSQL
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ postgresql_base_datos }}"
+    owner: "{{ postgresql_usuario }}"
+    encoding: UTF8
+    state: present
+
+# =======================================
+# POSTGRESQL - TLS Y ACCESO REMOTO
+# =======================================
+
+- name: Asegurar OpenSSL instalado
+  ansible.builtin.package:
+    name: openssl
+    state: present
+
+- name: Crear certificado TLS PostgreSQL
+  become_user: postgres
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -new
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:3072
+      - -keyout
+      - /var/lib/pgsql/data/server.key
+      - -out
+      - /var/lib/pgsql/data/server.crt
+      - -subj
+      - /CN=192.168.199.133
+      - -addext
+      - subjectAltName=IP:192.168.199.133
+    creates: /var/lib/pgsql/data/server.crt
+  notify: Reiniciar servicio PostgreSQL
+
+- name: Proteger clave privada TLS PostgreSQL
+  ansible.builtin.file:
+    path: /var/lib/pgsql/data/server.key
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  notify: Reiniciar servicio PostgreSQL
+
+- name: Configurar permisos del certificado TLS
+  ansible.builtin.file:
+    path: /var/lib/pgsql/data/server.crt
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: Reiniciar servicio PostgreSQL
+
+- name: Habilitar cifrado TLS PostgreSQL
+  ansible.builtin.lineinfile:
+    path: /var/lib/pgsql/data/postgresql.conf
+    regexp: '^\s*#?\s*ssl\s*='
+    line: "ssl = on"
+    backup: true
+  notify: Reiniciar servicio PostgreSQL
+
+- name: Configurar conexiones TCP PostgreSQL
+  ansible.builtin.lineinfile:
+    path: /var/lib/pgsql/data/postgresql.conf
+    regexp: '^\s*#?\s*listen_addresses\s*='
+    line: "listen_addresses = '127.0.0.1,192.168.199.133'"
+    backup: true
+  notify: Reiniciar servicio PostgreSQL
+
+- name: Exigir TLS para conexion remota PostgreSQL
+  ansible.builtin.blockinfile:
+    path: /var/lib/pgsql/data/pg_hba.conf
+    insertbefore: BOF
+    marker: "# {mark} ANSIBLE POSTGRESQL TLS"
+    block: |
+      hostnossl all all 192.168.199.131/32 reject
+      hostssl practica_postgres app_postgres 192.168.199.131/32 scram-sha-256
+    backup: true
+  notify: Reiniciar servicio PostgreSQL
+
+- name: Aplicar configuracion TLS antes de verificar reglas
+  ansible.builtin.meta: flush_handlers
+
+- name: Consultar estado TLS PostgreSQL
+  become_user: postgres
+  ansible.builtin.command:
+    cmd: psql -Atc "SHOW ssl;"
+  register: ssl_actual
+  changed_when: false
+
+- name: Reiniciar PostgreSQL si TLS sigue inactivo
+  ansible.builtin.systemd_service:
+    name: postgresql
+    state: restarted
+  when: ssl_actual.stdout | trim != 'on'
+
+- name: Confirmar TLS activo
+  become_user: postgres
+  ansible.builtin.command:
+    cmd: psql -Atc "SHOW ssl;"
+  register: ssl_verificado
+  changed_when: false
+  failed_when: ssl_verificado.stdout | trim != 'on'
+
+- name: Verificar sintaxis de reglas PostgreSQL
+  become_user: postgres
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -Atc
+      - "SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;"
+  register: errores_hba
+  changed_when: false
+  failed_when: errores_hba.stdout | trim != '0'
+
+- name: Comprobar regla PostgreSQL en firewall
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone=public
+      - --query-rich-rule
+      - 'rule family="ipv4" source address="192.168.199.131/32" port port="5432" protocol="tcp" accept'
+  register: firewall_postgres
+  changed_when: false
+  failed_when: firewall_postgres.rc not in [0, 1]
+
+- name: Permitir PostgreSQL desde controladora
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone=public
+      - --add-rich-rule
+      - 'rule family="ipv4" source address="192.168.199.131/32" port port="5432" protocol="tcp" accept'
+  when: firewall_postgres.rc == 1
+  notify: Recargar firewall PostgreSQL
+
+- name: Aplicar cambios PostgreSQL y firewall
+  ansible.builtin.meta: flush_handlers
+
+- name: Verificar PostgreSQL remoto disponible
+  ansible.builtin.command:
+    cmd: pg_isready -h 192.168.199.133 -p 5432
+  register: postgres_remoto
+  changed_when: false
+
+- name: Mostrar resultado PostgreSQL remoto
+  ansible.builtin.debug:
+    msg: "{{ postgres_remoto.stdout }}"

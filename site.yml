@@ -10,4 +10,4 @@
     - phpmyadmin
     - samba
     - ftp
-
+    - postgresql
